@@ -1,0 +1,7 @@
+web:
+  build: .
+  volumes:
+    - "data/docker_index:/data/docker_index"
+    - "data/logs:/var/log/apache2"
+  ports:
+    - "8010:80"
