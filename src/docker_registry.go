@@ -1,89 +1,71 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-	"io/ioutil"
+	"encoding/json"
 	"net/http/fcgi"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
 )
 
 var logger = &Logger{}
 
-var (
-	GITCOMMIT string
-)
+type Config struct {
+	DataDir  string
+	LogLevel string
+}
 
-func createPidFile(pidFile string) error {
-	if pidString, err := ioutil.ReadFile(pidFile); err == nil {
-		pid, err := strconv.Atoi(string(pidString))
-		if err == nil {
-			if _, err := os.Stat(fmt.Sprintf("/proc/%d/", pid)); err == nil {
-				return fmt.Errorf("pid file found, ensure docker-registry is not running or delete %s", pidFile)
-			}
-		}
-	}
+func readConfig() (*Config, error) {
+	configuration := Config{}
 
-	file, err := os.Create(pidFile)
+	// Read config file
+	file, err := os.Open("conf.json")
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	defer file.Close()
 
-	_, err = fmt.Fprintf(file, "%d", os.Getpid())
-	return err
+	// Decode
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&configuration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &configuration, nil
 }
 
-func removePidFile(pidFile string) {
-	if err := os.Remove(pidFile); err != nil {
-		logger.Error("Error removing %s: %s", pidFile, err)
-	}
-}
+func startServer(cfg *Config) {
+	logger.Info("Using dataDir ", cfg.DataDir)
 
-func startServer(listenOn, dataDir string, pidFile string) {
-	logger.Info("using version ", GITCOMMIT)
-	logger.Info("starting server on ", listenOn)
-	logger.Info("using dataDir ", dataDir)
-	logger.Info("using pidFile", pidFile)
-
-	if err := createPidFile(pidFile); err != nil {
-		logger.Error(err)
-		os.Exit(1)
-	}
-	defer removePidFile(pidFile)
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill, os.Signal(syscall.SIGTERM))
-	go func() {
-		sig := <-c
-		logger.Debug("Received signal '%v', exiting\n", sig)
-		removePidFile(pidFile)
-		os.Exit(0)
-	}()
-
-	if err := fcgi.Serve(nil, NewHandler(dataDir)); err != nil {
+	if err := fcgi.Serve(nil, NewHandler(cfg.DataDir)); err != nil {
 		logger.Error(err.Error())
 	}
 }
 
 func main() {
-	var listenOn *string
-	var dataDir *string
-	var doDebug *bool
-
-	listenOn = flag.String("l", ":80", "Address on which to listen.")
-	dataDir = flag.String("d", "/data/docker_index", "Directory to store data in")
-	doDebug = flag.Bool("D", false, "set log level to debug")
-	pidFile := flag.String("p", "/var/run/docker-registry.pid", "File containing process PID")
-	flag.Parse()
-
-	logger.Level = INFO
-	if *doDebug {
-		logger.Level = DEBUG
+	// Read configuration file
+	cfg, err := readConfig()
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
 	}
-	startServer(*listenOn, *dataDir, *pidFile)
+
+	// Set log level from config
+	switch cfg.LogLevel {
+	case "info":
+		logger.Level = INFO
+		break
+	case "debug":
+		logger.Level = DEBUG
+		break
+	case "error":
+		logger.Level = ERROR
+		break
+	case "warn":
+		logger.Level = WARN
+		break
+	}
+
+	// Everything above this line is executed only on the request and reused
+	// in the next requests due to the way fastcgi manages processes.
+	startServer(cfg)
 }

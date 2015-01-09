@@ -1,0 +1,4 @@
+{
+	"DataDir": "/data/docker_index",
+	"LogLevel": "info"
+}

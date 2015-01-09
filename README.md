@@ -23,18 +23,18 @@ To start the registry inside docker, run:
 ``` bash
 # Give permission to the apache user to write in the local storage (might require sudo on some systems)
 chown www-data -R data/docker_index/
+
 # Build and run
 fig build
-fig up -d
+fig up -d example
+
+# Dev container is also configured so rebuild is not needed on every compilation
+fig up -d dev
 ```
 
 ### Deploying in non-docker environment
 Most hosting companies already offer fastcgi support,
-so it should be enough to copy .htaccess and index.bin from public/ to your web directory.
+so it should be enough to copy .htaccess, conf.json and index.bin from public/ to your web directory.
 
 ### Known problems
-- The code is designed to work in a single instance app and enforces this via pid check.
-  This will most probably create problems when the are mutiple concurrent apache
-  requests and should be tested and fixed.
-- The docker_index directory is hardocoded in the source code(docker_registry.go)
-  and should preferably be confugurable.
+None yet

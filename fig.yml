@@ -1,7 +1,15 @@
-web:
+example:
   build: .
   volumes:
     - "data/docker_index:/data/docker_index"
     - "data/logs:/var/log/apache2"
   ports:
     - "8010:80"
+dev:
+  build: .
+  volumes:
+    - "public:/var/www"
+    - "data/docker_index:/data/docker_index"
+    - "data/logs:/var/log/apache2"
+  ports:
+    - "8012:80"
